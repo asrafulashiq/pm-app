@@ -1,0 +1,12 @@
+[theme]
+# Dark theme optimized colors
+primaryColor = "#4da6ff"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true

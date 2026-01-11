@@ -11,8 +11,10 @@ A Python-based personal project manager designed for tracking work tasks, especi
 - **Flexible Scheduling**: Configure check frequencies per task (daily, weekly, biweekly, monthly)
 - **Timeline Notifications**: Set specific notification times for tasks (e.g., "notify me in 34 hours")
 - **Quarterly Tracking**: Automatic aggregation of weekly summaries for quarterly achievement reports
-- **Multiple Interfaces**: CLI and markdown editing (MCP and Web UI coming soon)
-- **Background Service**: Systemd integration for periodic checks (future feature)
+- **Multiple Interfaces**: CLI, markdown editing, MCP server, and Web UI
+- **MCP Server**: Integration with AI agents (Claude Desktop, Cursor, etc.) via Model Context Protocol
+- **Web UI**: Browser-based read-only view of weekly journals using Streamlit
+- **Background Service**: Systemd integration for Web UI (CLI checks coming soon)
 - **Email Notifications**: Get notified about overdue tasks and reminders (future feature)
 
 ## Installation
@@ -260,6 +262,99 @@ pm jws             # Generate weekly summary
 
 For detailed journal documentation, see [JOURNAL.md](JOURNAL.md).
 
+## MCP Server
+
+The PM app includes an MCP (Model Context Protocol) server that exposes task management and journal operations to AI agents like Claude.
+
+### Starting the MCP Server
+
+```bash
+pm mcp-server
+```
+
+### Configuring AI Clients
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "pm": {
+      "command": "/path/to/venv/bin/pm",
+      "args": ["mcp-server"],
+      "cwd": "/path/to/pm-app"
+    }
+  }
+}
+```
+
+**Cursor IDE** (`~/.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "PM App": {
+      "command": "/path/to/venv/bin/pm",
+      "args": ["mcp-server"],
+      "cwd": "/path/to/pm-app"
+    }
+  }
+}
+```
+
+The MCP server provides 18 tools for task management, queries, and journal operations. For detailed documentation, see [MCP.md](MCP.md).
+
+## Web UI
+
+A read-only Streamlit web interface for viewing weekly journals without needing to open markdown files or run CLI commands.
+
+### Starting the Web UI
+
+```bash
+# Start in foreground (opens browser)
+pm web
+
+# Start on custom port
+pm web -p 8080
+
+# Start without opening browser
+pm web --no-browser
+
+# Start in background (daemon mode)
+pm web -b
+
+# Check if running
+pm web-status
+
+# Stop background server
+pm web-stop
+```
+
+### Running as a System Service
+
+For persistent access, install as a systemd service:
+
+```bash
+# Copy service file
+sudo cp service/pm-web.service /etc/systemd/system/pm-web@.service
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable pm-web@$USER
+sudo systemctl start pm-web@$USER
+
+# Check status
+sudo systemctl status pm-web@$USER
+```
+
+Access the Web UI at: `http://<server-ip>:8501`
+
+### Features
+
+- 📅 Week selector with navigation buttons
+- 📋 Daily sections with planned/completed/blocked tasks
+- 📈 Completion statistics and progress tracking
+- 🔄 Auto-refresh button
+- 🌙 Dark mode optimized
+
 ## Configuration
 
 Configuration file location: `~/.config/pm/config.yaml`
@@ -341,8 +436,6 @@ pm list --tags "q1-release"
 ## Future Features
 
 Coming soon:
-- **MCP Server**: Integration with AI agents and IDEs
-- **Web UI**: Browser-based interface using FastAPI + React
 - **Background Service**: Systemd service for automated checks and notifications
 - **Email Notifications**: Automated email summaries and reminders
 - **Slack Integration**: Send updates to Slack channels
@@ -353,7 +446,7 @@ Coming soon:
 
 ### Running tests
 
-The project has comprehensive unit tests covering all core functionality (84 tests, 100% passing).
+The project has comprehensive unit tests covering all core functionality (178 tests, 100% passing).
 
 ```bash
 # Run all tests
@@ -362,8 +455,10 @@ pytest tests/
 # Run with verbose output
 pytest tests/ -v
 
-# Run specific test file
-pytest tests/test_task.py
+# Run specific test modules
+pytest tests/test_task.py      # Core task tests
+pytest tests/mcp/              # MCP server tests (80 tests)
+pytest tests/web/              # Web UI tests (14 tests)
 
 # Run tests in quiet mode
 pytest tests/ -q
@@ -381,26 +476,38 @@ ruff check pm/
 ```
 pm-app/
 ├── pm/
-│   ├── core/           # Core business logic
-│   │   ├── task.py     # Task data model
-│   │   ├── storage.py  # Markdown I/O
-│   │   └── manager.py  # Task CRUD operations
-│   ├── cli/            # CLI interface
-│   │   └── commands.py # CLI commands
-│   └── utils/          # Utilities
-│       └── config.py   # Configuration
-├── tests/              # Unit tests (84 tests)
-│   ├── conftest.py     # Test fixtures
-│   ├── test_task.py    # Task model tests
-│   ├── test_storage.py # Storage tests
-│   ├── test_manager.py # Manager tests
-│   └── test_config.py  # Configuration tests
-├── service/            # Background service (future)
-├── data/              # Task storage (gitignored)
-├── pyproject.toml     # Package configuration
-├── requirements.txt   # Dependencies
+│   ├── core/              # Core business logic
+│   │   ├── task.py        # Task data model
+│   │   ├── storage.py     # Markdown I/O
+│   │   ├── manager.py     # Task CRUD operations
+│   │   ├── journal.py     # Weekly journal model
+│   │   └── journal_manager.py  # Journal operations
+│   ├── cli/               # CLI interface
+│   │   └── commands.py    # CLI commands
+│   ├── mcp/               # MCP server
+│   │   ├── server.py      # MCP server setup
+│   │   ├── serializers.py # JSON serialization
+│   │   └── tools/         # MCP tools (18 tools)
+│   ├── web/               # Web UI
+│   │   ├── app.py         # Streamlit app
+│   │   ├── data_loader.py # Data access layer
+│   │   └── components/    # UI components
+│   └── utils/             # Utilities
+│       └── config.py      # Configuration
+├── tests/                 # Unit tests (178 tests)
+│   ├── conftest.py        # Test fixtures
+│   ├── test_*.py          # Core tests (84 tests)
+│   ├── mcp/               # MCP tests (80 tests)
+│   └── web/               # Web UI tests (14 tests)
+├── service/               # Systemd service files
+│   └── pm-web.service     # Web UI service
+├── .streamlit/            # Streamlit configuration
+│   └── config.toml        # Theme settings
+├── pyproject.toml         # Package configuration
 ├── README.md
-└── TESTING.md         # Testing documentation
+├── MCP.md                 # MCP documentation
+├── JOURNAL.md             # Journal documentation
+└── TESTING.md             # Testing documentation
 ```
 
 ## Troubleshooting

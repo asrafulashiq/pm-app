@@ -575,5 +575,132 @@ def mcp_server():
         console.print("\n[yellow]Server stopped[/yellow]")
 
 
+@app.command()
+def web(
+    port: int = typer.Option(8501, "--port", "-p", help="Port to run server on"),
+    host: str = typer.Option("localhost", "--host", "-h", help="Host to bind to"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically"),
+    background: bool = typer.Option(False, "--background", "-b", help="Run in background (daemon mode)"),
+):
+    """Start the web UI for viewing journals.
+
+    Launches a Streamlit server that provides a read-only web interface
+    for viewing weekly journals and task progress.
+
+    Examples:
+        pm web              # Start on localhost:8501, opens browser
+        pm web -p 8080      # Start on port 8080
+        pm web --no-browser # Don't open browser automatically
+        pm web -b           # Run in background (daemon mode)
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    # Get the path to the web app
+    web_app_path = Path(__file__).parent.parent / "web" / "app.py"
+
+    if not web_app_path.exists():
+        console.print("[red]Error: Web module not found. Ensure pm.web is installed.[/red]")
+        raise typer.Exit(1)
+
+    # Build streamlit command
+    cmd = [
+        sys.executable, "-m", "streamlit", "run",
+        str(web_app_path),
+        "--server.port", str(port),
+        "--server.address", host,
+    ]
+
+    if no_browser:
+        cmd.extend(["--server.headless", "true"])
+
+    if background:
+        # Run in background (daemon mode)
+        console.print(f"[cyan]Starting PM Web UI in background on http://{host}:{port}[/cyan]")
+
+        # Use subprocess to detach
+        if sys.platform == "win32":
+            subprocess.Popen(
+                cmd,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            subprocess.Popen(
+                cmd,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        console.print(f"[green]✓ Web UI started in background[/green]")
+        console.print(f"  URL: http://{host}:{port}")
+        console.print("  To stop: pm web-stop")
+    else:
+        # Run in foreground
+        console.print(f"[cyan]Starting PM Web UI on http://{host}:{port}[/cyan]")
+        console.print("Press Ctrl+C to stop")
+
+        try:
+            subprocess.run(cmd)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Web UI stopped[/yellow]")
+
+
+@app.command(name="web-stop")
+def web_stop():
+    """Stop the background web UI server."""
+    import subprocess
+    import sys
+
+    console.print("[cyan]Stopping PM Web UI...[/cyan]")
+
+    # Find and kill streamlit processes running our app
+    if sys.platform == "win32":
+        # Windows: use taskkill
+        subprocess.run(["taskkill", "/F", "/IM", "streamlit.exe"],
+                       capture_output=True)
+    else:
+        # Unix: use pkill to find streamlit processes with our app
+        result = subprocess.run(
+            ["pkill", "-f", "streamlit.*pm/web/app.py"],
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            console.print("[green]✓ Web UI stopped[/green]")
+        else:
+            console.print("[yellow]No running web UI found[/yellow]")
+
+
+@app.command(name="web-status")
+def web_status():
+    """Check if the web UI is running."""
+    import subprocess
+    import sys
+
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq streamlit.exe"],
+            capture_output=True,
+            text=True
+        )
+        running = "streamlit.exe" in result.stdout
+    else:
+        result = subprocess.run(
+            ["pgrep", "-f", "streamlit.*pm/web/app.py"],
+            capture_output=True
+        )
+        running = result.returncode == 0
+
+    if running:
+        console.print("[green]✓ Web UI is running[/green]")
+    else:
+        console.print("[yellow]Web UI is not running[/yellow]")
+        console.print("  Start with: pm web")
+
+
 if __name__ == "__main__":
     app()

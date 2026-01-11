@@ -1,0 +1,49 @@
+# PM App Web UI - Systemd Service
+#
+# This service runs the Streamlit web UI for viewing weekly journals.
+#
+# Installation:
+#   sudo cp pm-web.service /etc/systemd/system/pm-web@.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable pm-web@$USER
+#   sudo systemctl start pm-web@$USER
+#
+# Commands:
+#   sudo systemctl status pm-web@$USER   # Check status
+#   sudo systemctl stop pm-web@$USER     # Stop service
+#   sudo systemctl restart pm-web@$USER  # Restart service
+#   journalctl -u pm-web@$USER -f        # View logs
+
+[Unit]
+Description=PM App Web UI - Weekly Journal Viewer
+Documentation=https://github.com/yourusername/pm-app
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=domain-users
+WorkingDirectory=/home/%i/projects-personal/pm-app
+
+# Use the virtual environment Python
+Environment="PATH=/home/%i/projects-personal/pm-app/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/%i/projects-personal/pm-app"
+ExecStart=/home/%i/projects-personal/pm-app/venv/bin/python -m streamlit run pm/web/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+
+# Restart configuration
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%i/pm-data
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pm-web
+
+[Install]
+WantedBy=multi-user.target
