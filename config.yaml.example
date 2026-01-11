@@ -1,0 +1,41 @@
+# PM App Configuration Example
+# Copy this to ~/.config/pm/config.yaml and customize
+
+# Data storage directory
+data_dir: ~/pm-data
+
+# Storage mode: 'multi_file' (one file per task) or 'single_file' (all tasks in tasks.md)
+storage_mode: multi_file
+
+# Notification settings
+notifications:
+  # Email notifications
+  email:
+    enabled: true
+    smtp_server: smtp.gmail.com
+    smtp_port: 587
+    sender: your-email@gmail.com
+    # For Gmail, use an app password: https://support.google.com/accounts/answer/185833
+    password: your-app-password
+    recipient: your-email@gmail.com
+
+  # Terminal notifications
+  terminal:
+    enabled: true
+    show_on_login: true
+
+# Background scheduler settings (for systemd service)
+scheduler:
+  # Check interval in seconds (3600 = 1 hour)
+  check_interval: 3600
+
+  # Time for daily summary (24-hour format)
+  daily_summary_time: "09:00"
+
+  # Day for weekly summary
+  weekly_summary_day: "Monday"
+
+# Default values for new tasks
+defaults:
+  check_frequency: weekly  # daily, weekly, biweekly, monthly
+  priority: medium  # high, medium, low
