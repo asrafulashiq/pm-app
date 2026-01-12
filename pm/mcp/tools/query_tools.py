@@ -4,6 +4,7 @@ from typing import Dict, Any, List
 
 from ...core.manager import TaskManager
 from ..serializers import serialize_task_list
+from .sync_helper import sync_before_read
 
 
 def get_overdue_tasks() -> List[Dict[str, Any]]:
@@ -14,7 +15,8 @@ def get_overdue_tasks() -> List[Dict[str, Any]]:
     Returns:
         List of serialized overdue task dictionaries
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
     tasks = manager.get_overdue_tasks()
     return serialize_task_list(tasks)
 
@@ -28,7 +30,8 @@ def get_tasks_needing_check() -> List[Dict[str, Any]]:
     Returns:
         List of serialized task dictionaries needing check
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
     tasks = manager.get_tasks_needing_check()
     return serialize_task_list(tasks)
 
@@ -45,7 +48,8 @@ def get_task_summary() -> Dict[str, Any]:
             "by_priority": {"high": int, "medium": int, "low": int}
         }
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
     summary = manager.get_summary()
 
     # Filter out zero counts for cleaner output
@@ -70,7 +74,8 @@ def search_tasks(query: str) -> List[Dict[str, Any]]:
     Returns:
         List of serialized task dictionaries matching the query
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
 
     # Use filter_tasks with search parameter
     tasks = manager.filter_tasks(search=query)

@@ -7,6 +7,7 @@ from dateutil import parser as date_parser
 from ...core.manager import TaskManager
 from ...core.task import TaskType, TaskStatus, TaskPriority, CheckFrequency
 from ..serializers import serialize_task, serialize_task_list
+from .sync_helper import sync_before_read, sync_before_write
 
 
 def _parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
@@ -48,7 +49,8 @@ def create_task(
     Returns:
         Serialized task dictionary
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
 
     # Parse enums
     task_type_enum = TaskType(task_type)
@@ -96,7 +98,8 @@ def list_tasks(
     Returns:
         List of serialized task dictionaries
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
 
     # Parse enums if provided
     status_enum = TaskStatus(status) if status else None
@@ -124,7 +127,8 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Serialized task dictionary or None if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before read operation
+    manager = sync_before_read()
     task = manager.get_task(task_id)
 
     if task is None:
@@ -164,7 +168,8 @@ def update_task(
     Returns:
         Serialized updated task or None if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
 
     # Parse enums if provided
     type_enum = TaskType(task_type) if task_type else None
@@ -206,7 +211,8 @@ def delete_task(task_id: str) -> bool:
     Returns:
         True if deleted, False if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
     return manager.delete_task(task_id)
 
 
@@ -220,7 +226,8 @@ def add_task_note(task_id: str, note: str) -> Optional[Dict[str, Any]]:
     Returns:
         Serialized updated task or None if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
     task = manager.add_note(task_id, note)
 
     if task is None:
@@ -238,7 +245,8 @@ def mark_task_done(task_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Serialized updated task or None if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
     task = manager.mark_done(task_id)
 
     if task is None:
@@ -256,7 +264,8 @@ def mark_task_in_progress(task_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Serialized updated task or None if not found
     """
-    manager = TaskManager()
+    # Auto-sync journal before write operation
+    manager, _ = sync_before_write()
     task = manager.mark_in_progress(task_id)
 
     if task is None:

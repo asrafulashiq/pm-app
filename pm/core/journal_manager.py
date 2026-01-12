@@ -2,12 +2,14 @@
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 import subprocess
 
 from .journal import WeeklyJournal, DaySection, WeeklySummary, get_current_week, get_week_for_date
 from .manager import TaskManager
 from .task import Task, TaskStatus
+from .storage import JournalStorage
+from .backup import BackupManager
 
 
 class JournalManager:
@@ -29,6 +31,18 @@ class JournalManager:
             self.journal_dir = data_dir / "journal"
 
         self.journal_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize backup manager if backup is enabled
+        backup_config = self.task_manager.config.backup
+        if backup_config.enabled:
+            backup_dir = self.task_manager.config.data_path / "backups"
+            self.backup_manager = BackupManager(
+                backup_dir=backup_dir,
+                max_backups_per_week=backup_config.max_backups_per_week,
+                retention_days=backup_config.retention_days,
+            )
+        else:
+            self.backup_manager = None
 
     def get_current_journal(self) -> WeeklyJournal:
         """Get journal for current week."""
@@ -179,39 +193,105 @@ class JournalManager:
 
         return day_section
 
-    def sync_journal(self, journal: Optional[WeeklyJournal] = None) -> Dict[str, bool]:
-        """Sync journal checkboxes with task statuses.
+    def sync_journal(self, journal: Optional[WeeklyJournal] = None) -> Dict[str, Any]:
+        """Full bidirectional sync between journal and task files.
+
+        The journal markdown is the source of truth. This method:
+        1. Creates a backup before making changes
+        2. Processes NEW: entries and creates task files
+        3. Parses checkbox changes and updates task file statuses
+        4. Detects removed tasks and deletes their task files
+        5. Saves the updated journal content
 
         Args:
             journal: Journal to sync (defaults to current week)
 
         Returns:
-            Dictionary mapping task IDs to their completion status
+            Dictionary with sync results:
+            - checkboxes: Dict mapping task IDs to checked status
+            - created: List of newly created task IDs
+            - deleted: List of deleted task IDs
+            - updated: List of task IDs with status changes
+            - backup_path: Path to backup file (if created)
         """
         if journal is None:
             journal = self.get_current_journal()
 
+        result = {
+            "checkboxes": {},
+            "created": [],
+            "deleted": [],
+            "updated": [],
+            "errors": [],
+            "backup_path": None,
+        }
+
         if not journal.exists():
-            return {}
+            return result
+
+        journal_path = journal.get_file_path()
+
+        # Create backup before sync
+        if self.backup_manager:
+            backup_path = self.backup_manager.create_backup(journal_path, trigger="sync")
+            result["backup_path"] = str(backup_path) if backup_path else None
 
         # Load journal content
-        content = journal.get_file_path().read_text()
+        content = journal_path.read_text()
 
-        # Parse checkboxes
+        # Get known task IDs from task files (before any changes)
+        known_task_ids = set(self.task_manager._tasks.keys())
+
+        storage = self.task_manager.storage
+
+        # 1. Process NEW: entries and create task files
+        if isinstance(storage, JournalStorage):
+            updated_content, new_tasks, parse_errors = storage.process_new_task_entries(content)
+            result["errors"].extend(parse_errors)
+            if new_tasks:
+                content = updated_content
+                for task in new_tasks:
+                    # Add to manager's in-memory cache
+                    self.task_manager._tasks[task.id] = task
+                    result["created"].append(task.id)
+
+        # 2. Parse checkboxes and update task statuses in task files
         checkboxes = journal.parse_checkboxes(content)
+        result["checkboxes"] = checkboxes
 
-        # Update task statuses based on checkboxes
         for task_id, is_checked in checkboxes.items():
             task = self.task_manager.get_task(task_id)
             if task:
                 if is_checked and task.status != TaskStatus.DONE:
-                    # Mark task as done
-                    self.task_manager.mark_done(task_id)
+                    # Mark task as done (updates task file)
+                    self.task_manager.update_task(task_id, status=TaskStatus.DONE)
+                    result["updated"].append(task_id)
                 elif not is_checked and task.status == TaskStatus.DONE:
-                    # Reopen task
+                    # Reopen task (updates task file)
                     self.task_manager.update_task(task_id, status=TaskStatus.TODO)
+                    result["updated"].append(task_id)
 
-        # Reload journal to update with new task statuses
+        # 3. Detect deleted tasks (in task files but not in journal)
+        if isinstance(storage, JournalStorage):
+            journal_task_ids = storage.get_journal_task_ids(content)
+            # Add newly created tasks
+            journal_task_ids.update(result["created"])
+
+            # Tasks in files but not in journal should be deleted
+            deleted_ids = known_task_ids - journal_task_ids
+            for task_id in deleted_ids:
+                # Delete task file
+                storage.delete_task(task_id)
+                # Remove from in-memory cache
+                if task_id in self.task_manager._tasks:
+                    del self.task_manager._tasks[task_id]
+                result["deleted"].append(task_id)
+
+        # 4. Save updated journal content (with NEW: entries replaced)
+        if content != journal_path.read_text():
+            journal_path.write_text(content)
+
+        # Reload journal structure
         tasks_by_id = {t.id: t for t in self.task_manager.get_all_tasks()}
         journal.load(tasks_by_id)
 
@@ -222,10 +302,21 @@ class JournalManager:
                 if checkboxes.get(tid, False)
             ]
 
-        # Save updated journal
-        journal.save(tasks_by_id)
+        return result
 
-        return checkboxes
+    def sync_journal_simple(self, journal: Optional[WeeklyJournal] = None) -> Dict[str, bool]:
+        """Simple sync that only handles checkbox status updates.
+
+        This is the legacy sync method for backwards compatibility.
+
+        Args:
+            journal: Journal to sync (defaults to current week)
+
+        Returns:
+            Dictionary mapping task IDs to their completion status
+        """
+        result = self.sync_journal(journal)
+        return result.get("checkboxes", {})
 
     def generate_week_summary(self, journal: Optional[WeeklyJournal] = None) -> WeeklySummary:
         """Generate summary for a week.

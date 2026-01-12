@@ -33,6 +33,9 @@ from .tools import (
     sync_journal,
     generate_week_summary,
     get_quarterly_summary,
+    # Backup
+    list_journal_backups,
+    restore_journal_backup,
 )
 
 # Configure logging
@@ -238,6 +241,29 @@ TOOLS = [
             },
         },
     ),
+    # Backup Tools
+    Tool(
+        name="list_journal_backups",
+        description="List available backups for a week's journal. Backups are automatically created before sync and modification operations.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "year": {"type": "integer", "description": "Year (defaults to current year)"},
+                "week": {"type": "integer", "description": "Week number 1-52 (defaults to current week)"},
+            },
+        },
+    ),
+    Tool(
+        name="restore_journal_backup",
+        description="Restore a journal from a backup file. Creates a backup of the current state before restoring.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "backup_path": {"type": "string", "description": "Path to the backup file to restore"},
+            },
+            "required": ["backup_path"],
+        },
+    ),
 ]
 
 
@@ -261,6 +287,8 @@ TOOL_HANDLERS = {
     "sync_journal": sync_journal,
     "generate_week_summary": generate_week_summary,
     "get_quarterly_summary": get_quarterly_summary,
+    "list_journal_backups": list_journal_backups,
+    "restore_journal_backup": restore_journal_backup,
 }
 
 

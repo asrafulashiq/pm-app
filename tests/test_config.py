@@ -56,7 +56,7 @@ class TestConfigDataClasses:
         config = Config()
 
         assert config.data_dir == "~/pm-data"
-        assert config.storage_mode == "multi_file"
+        assert config.storage_mode == "journal"  # Default is now journal mode
         assert isinstance(config.notifications, NotificationConfig)
         assert isinstance(config.scheduler, SchedulerConfig)
         assert isinstance(config.defaults, DefaultsConfig)
@@ -148,7 +148,7 @@ class TestConfigManager:
         assert manager.config.data_dir == str(temp_dir)
 
         # Default fields
-        assert manager.config.storage_mode == "multi_file"
+        assert manager.config.storage_mode == "journal"  # Default is now journal mode
         assert manager.config.scheduler.check_interval == 3600
 
     def test_config_manager_invalid_yaml(self, temp_dir):

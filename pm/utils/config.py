@@ -47,13 +47,23 @@ class DefaultsConfig:
 
 
 @dataclass
+class BackupConfig:
+    """Backup settings for journal files."""
+    enabled: bool = True
+    max_backups_per_week: int = 50
+    retention_days: int = 90
+    backup_on_sync: bool = True
+
+
+@dataclass
 class Config:
     """Main configuration."""
     data_dir: str = "~/pm-data"
-    storage_mode: str = "multi_file"
+    storage_mode: str = "journal"  # Changed default to journal-based storage
     notifications: NotificationConfig = field(default_factory=NotificationConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
+    backup: BackupConfig = field(default_factory=BackupConfig)
 
     @property
     def data_path(self) -> Path:
@@ -155,12 +165,22 @@ class ConfigManager:
             priority=defaults_data.get("priority", "medium"),
         )
 
+        # Parse backup config
+        backup_data = data.get("backup", {})
+        backup_config = BackupConfig(
+            enabled=backup_data.get("enabled", True),
+            max_backups_per_week=backup_data.get("max_backups_per_week", 50),
+            retention_days=backup_data.get("retention_days", 90),
+            backup_on_sync=backup_data.get("backup_on_sync", True),
+        )
+
         return Config(
             data_dir=data.get("data_dir", "~/pm-data"),
-            storage_mode=data.get("storage_mode", "multi_file"),
+            storage_mode=data.get("storage_mode", "journal"),
             notifications=notification_config,
             scheduler=scheduler_config,
             defaults=defaults_config,
+            backup=backup_config,
         )
 
     def save_config(self) -> None:
@@ -194,6 +214,12 @@ class ConfigManager:
             "defaults": {
                 "check_frequency": self.config.defaults.check_frequency,
                 "priority": self.config.defaults.priority,
+            },
+            "backup": {
+                "enabled": self.config.backup.enabled,
+                "max_backups_per_week": self.config.backup.max_backups_per_week,
+                "retention_days": self.config.backup.retention_days,
+                "backup_on_sync": self.config.backup.backup_on_sync,
             },
         }
 

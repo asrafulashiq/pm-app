@@ -1,5 +1,7 @@
 """MCP tools for PM app."""
 
+from .sync_helper import sync_before_read, sync_before_write, SyncError
+
 from .task_tools import (
     create_task,
     list_tasks,
@@ -25,6 +27,8 @@ from .journal_tools import (
     sync_journal,
     generate_week_summary,
     get_quarterly_summary,
+    list_journal_backups,
+    restore_journal_backup,
 )
 
 __all__ = [
@@ -49,4 +53,7 @@ __all__ = [
     "sync_journal",
     "generate_week_summary",
     "get_quarterly_summary",
+    # Backup tools (2)
+    "list_journal_backups",
+    "restore_journal_backup",
 ]

@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 from pm.core.task import Task, TaskType, TaskStatus, TaskPriority, CheckFrequency
-from pm.core.journal import WeeklyJournal, DaySection, WeeklySummary
+from pm.core.journal import WeeklyJournal, DaySection, WeeklySummary, get_current_week
 from pm.core.manager import TaskManager
 from pm.core.journal_manager import JournalManager
 
@@ -117,3 +117,112 @@ def sample_weekly_summary():
         blockers=["Waiting for API access", "Team dependency"],
         notes="Good progress this week"
     )
+
+
+@pytest.fixture
+def journal_mode_manager(mcp_temp_dir, monkeypatch):
+    """TaskManager configured for journal mode with test data directory."""
+    import pm.utils.config as config_module
+    from pm.utils.config import Config, ConfigManager, BackupConfig
+
+    # Reset the global config manager singleton
+    config_module._config_manager = None
+
+    test_cfg = Config(
+        data_dir=str(mcp_temp_dir),
+        storage_mode="journal",  # Use journal mode
+        backup=BackupConfig(enabled=True),
+    )
+
+    # Create a test config manager
+    test_config_manager = ConfigManager.__new__(ConfigManager)
+    test_config_manager.config = test_cfg
+    test_config_manager.config_file = mcp_temp_dir / "test_config.yaml"
+
+    # Patch the global singleton
+    config_module._config_manager = test_config_manager
+
+    # Also patch get_config to ensure it returns our test config
+    def mock_get_config(*args, **kwargs):
+        return test_cfg
+
+    monkeypatch.setattr("pm.utils.config.get_config", mock_get_config)
+
+    # Create journal directory
+    journal_dir = mcp_temp_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create and return task manager (which will now use test config)
+    manager = TaskManager()
+
+    # Reset singleton after test to avoid affecting other tests
+    yield manager
+
+    config_module._config_manager = None
+
+
+@pytest.fixture
+def journal_with_tasks(journal_mode_manager, mcp_temp_dir):
+    """Create a journal with some task entries for testing."""
+    journal_dir = mcp_temp_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+
+    year, week = get_current_week()
+    journal_path = journal_dir / f"{year}-W{week:02d}.md"
+
+    # Create journal content with tasks
+    content = f"""# Week {week} - {year}
+
+## Monday, Jan 06
+
+### 📋 Planned
+- [ ] NEW: First test task (general, high)
+- [ ] NEW: Second test task (project, medium)
+
+### 📝 Notes
+Test journal with tasks.
+
+---
+"""
+    journal_path.write_text(content)
+
+    return {
+        "manager": journal_mode_manager,
+        "journal_path": journal_path,
+        "journal_dir": journal_dir,
+    }
+
+
+@pytest.fixture
+def journal_with_malformed_entries(journal_mode_manager, mcp_temp_dir):
+    """Create a journal with malformed NEW: entries for testing error logging."""
+    journal_dir = mcp_temp_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+
+    year, week = get_current_week()
+    journal_path = journal_dir / f"{year}-W{week:02d}.md"
+
+    # Create journal content with malformed entries
+    content = f"""# Week {week} - {year}
+
+## Monday, Jan 06
+
+### 📋 Planned
+- [ ] NEW: Valid task (general, high)
+- [ ] NEW: Missing type and priority
+- [ ] NEW: Invalid type (badtype, high)
+- [ ] NEW: Invalid priority (general, badpriority)
+- [ ] NEW: Another valid task (project, low)
+
+### 📝 Notes
+Testing error handling.
+
+---
+"""
+    journal_path.write_text(content)
+
+    return {
+        "manager": journal_mode_manager,
+        "journal_path": journal_path,
+        "journal_dir": journal_dir,
+    }

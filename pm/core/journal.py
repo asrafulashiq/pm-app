@@ -62,6 +62,7 @@ class WeeklyJournal:
 
         self.days: Dict[str, DaySection] = {}
         self.summary: Optional[WeeklySummary] = None
+        self.task_registry: Dict[str, Task] = {}  # Tasks stored in this journal
 
     @staticmethod
     def _get_week_start(year: int, week: int) -> datetime:
@@ -120,7 +121,7 @@ class WeeklyJournal:
         lines.append(f"# Week {self.week} - {self.year} ({week_range})")
         lines.append("")
 
-        # Daily sections
+        # Daily sections (simple format - just task IDs and titles)
         for i in range(7):  # Monday to Sunday
             day_date = self.week_start + timedelta(days=i)
             day_key = self.get_day_key(day_date)

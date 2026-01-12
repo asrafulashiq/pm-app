@@ -1,10 +1,10 @@
 """Task manager for CRUD operations."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from datetime import datetime
 
 from .task import Task, TaskType, TaskStatus, TaskPriority, CheckFrequency
-from .storage import TaskStorage
+from .storage import TaskStorage, JournalStorage
 from ..utils.config import get_config
 
 
@@ -18,10 +18,21 @@ class TaskManager:
             config_file: Optional path to config file
         """
         self.config = get_config(config_file)
-        self.storage = TaskStorage(
-            data_dir=str(self.config.data_path),
-            storage_mode=self.config.storage_mode
-        )
+
+        # Use JournalStorage for journal mode, TaskStorage for legacy modes
+        if self.config.storage_mode == "journal":
+            self.storage: Union[TaskStorage, JournalStorage] = JournalStorage(
+                data_dir=str(self.config.data_path),
+                backup_enabled=self.config.backup.enabled,
+                max_backups_per_week=self.config.backup.max_backups_per_week,
+                retention_days=self.config.backup.retention_days,
+            )
+        else:
+            self.storage = TaskStorage(
+                data_dir=str(self.config.data_path),
+                storage_mode=self.config.storage_mode
+            )
+
         self._tasks: Dict[str, Task] = {}
         self.load_tasks()
 
